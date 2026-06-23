@@ -32,15 +32,42 @@ function extOf(pathname: string) {
   return (pathname.split('.').pop() ?? 'file').toUpperCase().slice(0, 6)
 }
 
-const EXT_COLORS: Record<string, string> = {
-  PDF: '#DC2626', JPG: '#7C3AED', JPEG: '#7C3AED', PNG: '#7C3AED',
-  GIF: '#0891B2', SVG: '#059669', WEBP: '#7C3AED', MP4: '#2563EB',
-  MOV: '#2563EB', MKV: '#2563EB', MP3: '#D97706', WAV: '#D97706',
-  FLAC: '#D97706', ZIP: '#4B5563', RAR: '#4B5563', '7Z': '#4B5563',
-  TAR: '#4B5563', JS: '#F59E0B', TS: '#2563EB', PY: '#059669',
-  RS: '#D97706', GO: '#0891B2', CSV: '#059669', XLSX: '#059669',
-  DOCX: '#2563EB', PPTX: '#D97706', JSON: '#F59E0B', MD: '#6B7280',
-  TXT: '#6B7280', HTML: '#DC2626', CSS: '#7C3AED',
+const RING_R = 26
+const RING_C = 32
+const RING_CIRC = 2 * Math.PI * RING_R
+
+function IconDown() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 2v9M4 8l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2 14h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function IconX() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function IconArrowUp() {
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      <path d="M18 28V10M10 18l8-8 8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function IconBlock() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="4" y="4" width="24" height="24" rx="4" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M10 16h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  )
 }
 
 export default function Page() {
@@ -138,34 +165,34 @@ export default function Page() {
   }, [refresh])
 
   const isFull = files.length >= MAX_FILES
-  const capacityPct = Math.min(100, (files.length / MAX_FILES) * 100)
-  const displayPct = uploading
-    ? Math.min(100, capacityPct + (progress / 100) * (100 / MAX_FILES))
-    : capacityPct
+  const filledSlots = uploading ? files.length + 1 : files.length
+  const ringOffset = RING_CIRC - (progress / 100) * RING_CIRC
 
   return (
     <main className="main">
       <header className="header">
-        <span className="logo">drop.</span>
-        <span className="tagline">schnelles file-sharing</span>
+        <div className="header-left">
+          <span className="logo">drop.</span>
+          <span className="tagline">schnelles file-sharing</span>
+        </div>
+        <div className="slots" aria-label={`${filledSlots} von ${MAX_FILES} Slots belegt`}>
+          {Array.from({ length: MAX_FILES }, (_, i) => (
+            <span
+              key={i}
+              className={[
+                'slot',
+                i < files.length ? 'filled' : '',
+                uploading && i === files.length ? 'pulsing' : '',
+              ].filter(Boolean).join(' ')}
+            />
+          ))}
+        </div>
       </header>
 
-      <div className="capacity">
-        <div className="capacity-track">
-          <div
-            className={`capacity-fill${uploading ? ' uploading' : ''}`}
-            style={{ width: `${displayPct}%` }}
-          />
-        </div>
-        <div className="capacity-row">
-          <span className="capacity-count">
-            {uploading ? files.length + 1 : files.length}/{MAX_FILES} Dateien
-          </span>
-          <span className="capacity-limit">max 5 × 25 MB</span>
-        </div>
-      </div>
-
       <div
+        role="button"
+        tabIndex={!uploading && !isFull ? 0 : -1}
+        aria-label="Datei hochladen"
         className={[
           'dropzone',
           dragOver ? 'dragover' : '',
@@ -173,6 +200,7 @@ export default function Page() {
           isFull && !uploading ? 'full' : '',
         ].filter(Boolean).join(' ')}
         onClick={() => !uploading && !isFull && inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !uploading && !isFull && inputRef.current?.click() } }}
         onDragOver={(e) => { e.preventDefault(); if (!uploading && !isFull) setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
@@ -185,22 +213,30 @@ export default function Page() {
         />
 
         {uploading ? (
-          <div className="upload-progress">
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
+          <div className="upload-state">
+            <div className="progress-ring">
+              <svg width={RING_C * 2} height={RING_C * 2} viewBox={`0 0 ${RING_C * 2} ${RING_C * 2}`}>
+                <circle className="progress-ring-track" cx={RING_C} cy={RING_C} r={RING_R} />
+                <circle
+                  className="progress-ring-fill"
+                  cx={RING_C} cy={RING_C} r={RING_R}
+                  strokeDasharray={RING_CIRC}
+                  strokeDashoffset={ringOffset}
+                />
+              </svg>
+              <span className="progress-ring-pct">{progress}%</span>
             </div>
             <p className="progress-filename">{uploadName}</p>
-            <p className="progress-pct">{progress}%</p>
           </div>
         ) : isFull ? (
           <div className="drop-content">
-            <span className="drop-icon muted">■</span>
+            <span className="drop-svg muted"><IconBlock /></span>
             <span className="drop-label">Speicher voll</span>
             <span className="drop-hint">Datei löschen, um Platz zu schaffen</span>
           </div>
         ) : (
           <div className="drop-content">
-            <span className="drop-icon">+</span>
+            <span className="drop-svg"><IconArrowUp /></span>
             <span className="drop-label">Datei hier ablegen</span>
             <span className="drop-hint">oder klicken zum Auswählen · max. 25 MB</span>
           </div>
@@ -208,34 +244,35 @@ export default function Page() {
       </div>
 
       {error && (
-        <div className="error-banner" onClick={() => setError(null)}>
+        <div className="error-banner" role="alert" onClick={() => setError(null)}>
           <span>{error}</span>
-          <span className="error-close">✕</span>
+          <span className="error-close" aria-hidden="true">ESC</span>
         </div>
       )}
 
       {loading ? (
-        <p className="state-msg">Lädt…</p>
+        <p className="state-msg">lädt…</p>
       ) : files.length === 0 ? (
-        <p className="state-msg">Noch keine Dateien — lade eine hoch.</p>
+        <p className="state-msg">noch keine dateien. leg eine ab.</p>
       ) : (
         <>
-          <p className="list-label">Dateien</p>
-          <ul className="file-list">
+          <p className="section-label">dateien</p>
+          <ul className="file-list" aria-label="Hochgeladene Dateien">
             {files.map((f) => {
               const ext = extOf(f.pathname)
-              const color = EXT_COLORS[ext] ?? '#6B7280'
               const isRemoving = removing === f.url
               return (
                 <li key={f.url} className={`file-item${isRemoving ? ' removing' : ''}`}>
-                  <span className="file-badge" style={{ background: color }}>
-                    {ext}
-                  </span>
-                  <span className="file-name" title={f.pathname}>
-                    {f.pathname}
-                  </span>
-                  <span className="file-size">{fmtSize(f.size)}</span>
-                  <span className="file-age">{timeAgo(f.uploadedAt)}</span>
+                  <div className="file-ext-col">
+                    <span className="file-ext">{ext}</span>
+                  </div>
+                  <div className="file-info">
+                    <span className="file-name" title={f.pathname}>{f.pathname}</span>
+                    <span className="file-meta">
+                      <span className="file-size-val">{fmtSize(f.size)}</span>
+                      <span>{timeAgo(f.uploadedAt)}</span>
+                    </span>
+                  </div>
                   <div className="file-actions">
                     <a
                       className="btn"
@@ -243,17 +280,17 @@ export default function Page() {
                       download
                       target="_blank"
                       rel="noreferrer"
-                      title="Herunterladen"
+                      aria-label={`${f.pathname} herunterladen`}
                     >
-                      ↓
+                      <IconDown />
                     </a>
                     <button
                       className="btn danger"
                       onClick={() => handleDelete(f.url)}
                       disabled={isRemoving}
-                      title="Löschen"
+                      aria-label={`${f.pathname} löschen`}
                     >
-                      {isRemoving ? '…' : '✕'}
+                      {isRemoving ? <span style={{ fontSize: '0.75rem' }}>…</span> : <IconX />}
                     </button>
                   </div>
                 </li>
